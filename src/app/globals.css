@@ -1,0 +1,44 @@
+
+
+@import "tailwindcss";
+
+/* กำหนดค่าเริ่มต้น */
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #000000; /* พื้นหลังดำ */
+  color: #ffffff; /* ตัวอักษรขาว */
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+}
+
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --foreground: #ffffff;
+  }
+}
+
+
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans, Arial, Helvetica, sans-serif);
+  --font-mono: var(--font-geist-mono, monospace);
+}
+
+/* ให้ layout เต็มหน้าจอเสมอ */
+#root,
+#__next {
+  height: 100%;
+}
