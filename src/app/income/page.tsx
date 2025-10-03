@@ -16,36 +16,46 @@ interface Transaction {
   note?: string;
 }
 
+interface SupabaseUser {
+  id: string;
+  email: string | null;
+}
+
 export default function IncomePage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [removingIds, setRemovingIds] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const getUser = async () => {
+    async function init() {
       const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) router.push("/login");
-      else setUser(data.user);
-    };
-    getUser();
-    fetchTransactions();
-  }, [router]);
+      if (error || !data.user) {
+        router.push("/login");
+        return;
+      }
+      setUser({ id: data.user.id, email: data.user.email });
 
-  const fetchTransactions = async () => {
-    const { data } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("type", "income")
-      .order("date", { ascending: false });
-    if (data) setTransactions(data as Transaction[]);
-  };
+      const { data: tData, error: tError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("type", "income")
+        .order("date", { ascending: false });
+
+      if (tError) console.error(tError);
+      else setTransactions(tData as Transaction[]);
+
+      setLoading(false);
+    }
+    init();
+  }, [router]);
 
   const handleDelete = async (id: number) => {
     if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) return;
 
     setRemovingIds((prev) => [...prev, id]);
+
     setTimeout(async () => {
       const { error } = await supabase
         .from("transactions")
@@ -56,11 +66,17 @@ export default function IncomePage() {
     }, 300);
   };
 
-  const grouped = transactions.reduce((acc: any, t) => {
-    if (!acc[t.date]) acc[t.date] = [];
-    acc[t.date].push(t);
-    return acc;
-  }, {});
+  if (loading)
+    return <p className="text-white text-center mt-20">Loading...</p>;
+
+  const grouped = transactions.reduce(
+    (acc: Record<string, Transaction[]>, t) => {
+      if (!acc[t.date]) acc[t.date] = [];
+      acc[t.date].push(t);
+      return acc;
+    },
+    {}
+  );
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
@@ -85,16 +101,19 @@ export default function IncomePage() {
         >
           🛒 รายจ่าย
         </button>
-
-        <button onClick={() => router.push("/category")} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400">
-          📂 หมวดหมู่
-        </button>
-
         <button
-          onClick={() => router.push("#")}
+          onClick={() => router.push("/category")}
           className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400"
         >
-          ⚙️ ตั้งค่า
+          📂 หมวดหมู่
+        </button>
+        <button
+          onClick={() =>
+            supabase.auth.signOut().then(() => router.push("/login"))
+          }
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-red-500"
+        >
+          🔓 ออกจากระบบ
         </button>
       </aside>
 
@@ -107,18 +126,8 @@ export default function IncomePage() {
               <p className="text-gray-400 text-sm">สวัสดี, {user.email}</p>
             )}
           </div>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.push("/login");
-            }}
-            className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-500"
-          >
-            ออกจากระบบ
-          </button>
         </div>
 
-        {/* รายการรายรับ grouped by date */}
         <div className="grid grid-cols-1 gap-6">
           {Object.keys(grouped).map((date) => (
             <div
@@ -127,7 +136,7 @@ export default function IncomePage() {
             >
               <h2 className="text-green-300 font-semibold">{date}</h2>
               <div className="space-y-2">
-                {grouped[date].map((t: Transaction) => {
+                {grouped[date].map((t) => {
                   const isRemoving = removingIds.includes(t.id);
                   return (
                     <div
@@ -162,7 +171,6 @@ export default function IncomePage() {
           )}
         </div>
       </main>
-      
       <Footer />
     </div>
   );

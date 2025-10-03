@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -17,6 +17,11 @@ interface Transaction {
   note?: string;
 }
 
+interface SupabaseUser {
+  id: string;
+  email: string | null;
+}
+
 // Map category to icon
 const categoryIcons: { [key: string]: any } = {
   เงินเดือน: Wallet,
@@ -28,32 +33,35 @@ const categoryIcons: { [key: string]: any } = {
 
 export default function CategoryPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingIds, setRemovingIds] = useState<number[]>([]);
-  const [menuOpen, setMenuOpen] = useState(false);
-  
 
+  // โหลด user และ transactions
   useEffect(() => {
-    const getUser = async () => {
+    async function init() {
+      // ตรวจสอบ user
       const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) router.push("/login");
-      else setUser(data.user);
+      if (error || !data.user) {
+        router.push("/login");
+        return;
+      }
+      setUser({ id: data.user.id, email: data.user.email });
+
+      // โหลด transactions
+      const { data: transactionsData, error: tError } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("date", { ascending: false });
+      if (tError) console.error(tError);
+      else setTransactions(transactionsData as Transaction[]);
+
       setLoading(false);
-    };
-    getUser();
-    fetchTransactions();
+    }
+
+    init();
   }, [router]);
-
-  const fetchTransactions = async () => {
-    const { data } = await supabase
-      .from("transactions")
-      .select("*")
-      .order("date", { ascending: false });
-
-    if (data) setTransactions(data as Transaction[]);
-  };
 
   const handleDelete = async (id: number) => {
     if (!window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?")) return;
@@ -76,7 +84,7 @@ export default function CategoryPage() {
   // Group by category
   const incomeGrouped = transactions
     .filter((t) => t.type === "income")
-    .reduce((acc: any, t) => {
+    .reduce((acc: Record<string, Transaction[]>, t) => {
       if (!acc[t.category]) acc[t.category] = [];
       acc[t.category].push(t);
       return acc;
@@ -84,7 +92,7 @@ export default function CategoryPage() {
 
   const expenseGrouped = transactions
     .filter((t) => t.type === "expense")
-    .reduce((acc: any, t) => {
+    .reduce((acc: Record<string, Transaction[]>, t) => {
       if (!acc[t.category]) acc[t.category] = [];
       acc[t.category].push(t);
       return acc;
@@ -119,12 +127,13 @@ export default function CategoryPage() {
         >
           📂 หมวดหมู่
         </button>
-
         <button
-          onClick={() => router.push("#")}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400"
+          onClick={() =>
+            supabase.auth.signOut().then(() => router.push("/login"))
+          }
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-red-500"
         >
-          ⚙️ ตั้งค่า
+          🔓 ออกจากระบบ
         </button>
       </aside>
 
@@ -149,7 +158,7 @@ export default function CategoryPage() {
                     <Icon size={20} className="text-green-400" />
                     <span className="font-semibold text-green-300">{cat}</span>
                   </div>
-                  {incomeGrouped[cat].map((t: Transaction) => {
+                  {incomeGrouped[cat].map((t) => {
                     const isRemoving = removingIds.includes(t.id);
                     return (
                       <div
@@ -194,7 +203,7 @@ export default function CategoryPage() {
                     <Icon size={20} className="text-red-400" />
                     <span className="font-semibold text-red-300">{cat}</span>
                   </div>
-                  {expenseGrouped[cat].map((t: Transaction) => {
+                  {expenseGrouped[cat].map((t) => {
                     const isRemoving = removingIds.includes(t.id);
                     return (
                       <div

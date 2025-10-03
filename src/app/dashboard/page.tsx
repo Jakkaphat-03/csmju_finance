@@ -18,14 +18,18 @@ interface Transaction {
   created_at: string;
 }
 
-// ---------------------- Modal ----------------------
+interface SupabaseUser {
+  id: string;
+  email: string | null;
+}
+
 function TransactionModal({
   user,
   type,
   onClose,
   onSave,
 }: {
-  user: any;
+  user: SupabaseUser;
   type: "income" | "expense";
   onClose: () => void;
   onSave: () => void;
@@ -73,9 +77,8 @@ function TransactionModal({
       },
     ]);
 
-    if (error) {
-      alert("❌ Error: " + error.message);
-    } else {
+    if (error) alert("❌ Error: " + error.message);
+    else {
       alert("✅ บันทึกสำเร็จ");
       onSave();
       onClose();
@@ -88,8 +91,6 @@ function TransactionModal({
         <h2 className="text-xl font-bold text-green-400">
           {type === "income" ? "เพิ่มรายรับใหม่" : "เพิ่มรายจ่ายใหม่"}
         </h2>
-
-        {/* บัญชี */}
         <div>
           <label className="block text-sm text-gray-300 mb-1">บัญชี</label>
           <select
@@ -102,8 +103,6 @@ function TransactionModal({
             <option>เงินสด</option>
           </select>
         </div>
-
-        {/* วันที่ */}
         <div>
           <label className="block text-sm text-gray-300 mb-1">วันที่</label>
           <input
@@ -113,8 +112,6 @@ function TransactionModal({
             className="w-full p-2 rounded bg-gray-800 text-white"
           />
         </div>
-
-        {/* หมวดหมู่ */}
         <div>
           <label className="block text-sm text-gray-300 mb-1">หมวดหมู่</label>
           <select
@@ -123,14 +120,12 @@ function TransactionModal({
             className="w-full p-2 rounded bg-gray-800 text-white"
           >
             {(type === "income" ? incomeCategories : expenseCategories).map(
-              (cat) => (
-                <option key={cat}>{cat}</option>
+              (c) => (
+                <option key={c}>{c}</option>
               )
             )}
           </select>
         </div>
-
-        {/* จำนวนเงิน */}
         <div>
           <label className="block text-sm text-gray-300 mb-1">จำนวนเงิน</label>
           <input
@@ -141,8 +136,6 @@ function TransactionModal({
             className="w-full p-2 rounded bg-gray-800 text-white"
           />
         </div>
-
-        {/* โน้ต */}
         <div>
           <label className="block text-sm text-gray-300 mb-1">โน้ต</label>
           <textarea
@@ -151,8 +144,6 @@ function TransactionModal({
             className="w-full p-2 rounded bg-gray-800 text-white"
           />
         </div>
-
-        {/* ปุ่ม */}
         <div className="flex justify-end gap-3 pt-4">
           <button
             onClick={onClose}
@@ -176,13 +167,11 @@ function TransactionModal({
   );
 }
 
-// ---------------------- Dashboard ----------------------
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [menuOpen, setMenuOpen] = useState(false);
   const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -195,14 +184,17 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    const getUser = async () => {
+    async function init() {
       const { data, error } = await supabase.auth.getUser();
-      if (error || !data.user) router.push("/login");
-      else setUser(data.user);
+      if (error || !data.user) {
+        router.push("/login");
+        return;
+      }
+      setUser({ id: data.user.id, email: data.user.email });
+      await fetchTransactions();
       setLoading(false);
-    };
-    getUser();
-    fetchTransactions();
+    }
+    init();
   }, [router]);
 
   if (loading)
@@ -211,11 +203,9 @@ export default function DashboardPage() {
   const totalIncome = transactions
     .filter((t) => t.type === "income")
     .reduce((sum, t) => sum + t.amount, 0);
-
   const totalExpense = transactions
     .filter((t) => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0);
-
   const pieData = [
     { name: "รายรับ", value: totalIncome },
     { name: "รายจ่าย", value: totalExpense },
@@ -223,10 +213,10 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
-      {/* Sidebar */}
       <aside
-        className={`fixed md:static top-0 left-0 min-h-screen h-auto w-64 bg-gray-900 p-6 border-r border-gray-800 flex-col gap-6 transform transition-transform duration-300 z-50
-  ${menuOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:flex`}
+        className={`fixed md:static top-0 left-0 min-h-screen h-auto w-64 bg-gray-900 p-6 border-r border-gray-800 flex-col gap-6 transform transition-transform duration-300 z-50 ${
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 md:flex`}
       >
         <button
           className="absolute top-4 right-4 md:hidden"
@@ -234,7 +224,6 @@ export default function DashboardPage() {
         >
           ✖
         </button>
-
         <h2 className="text-lg font-bold text-green-400">เมนู</h2>
         <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400">
           🏠 บัญชี
@@ -245,27 +234,29 @@ export default function DashboardPage() {
         >
           💰 รายรับ
         </button>
-
         <button
           onClick={() => router.push("/expense")}
           className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400"
         >
           🛒 รายจ่าย
         </button>
-
-        <button onClick={() => router.push("/category")} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400">
+        <button
+          onClick={() => router.push("/category")}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400"
+        >
           📂 หมวดหมู่
         </button>
-
-        <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-green-400">
-          ⚙️ ตั้งค่า
+        <button
+          onClick={() =>
+            supabase.auth.signOut().then(() => router.push("/login"))
+          }
+          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 hover:text-red-500"
+        >
+          🔓 ออกจากระบบ
         </button>
-
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-4 sm:p-8 space-y-8">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-900 p-4 rounded-xl shadow gap-4">
           <div className="flex items-center gap-4">
             <button
@@ -283,18 +274,8 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.push("/login");
-            }}
-            className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-500"
-          >
-            ออกจากระบบ
-          </button>
         </div>
 
-        {/* Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="bg-gray-900 p-6 rounded-xl text-center shadow">
             <p className="text-gray-400">รายรับ</p>
@@ -310,9 +291,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* รายรับ */}
           <div className="bg-gray-900 p-6 rounded-xl shadow">
             <h3 className="text-lg font-bold text-green-400 mb-4">รายรับ</h3>
             <button
@@ -338,7 +317,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* รายจ่าย */}
           <div className="bg-gray-900 p-6 rounded-xl shadow">
             <h3 className="text-lg font-bold text-red-400 mb-4">รายจ่าย</h3>
             <button
@@ -364,7 +342,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Pie Chart */}
           <div className="bg-gray-900 p-6 rounded-xl shadow flex flex-col items-center">
             <h3 className="text-lg font-bold text-green-400 mb-6">
               สรุปการใช้จ่าย
@@ -382,10 +359,7 @@ export default function DashboardPage() {
                     label
                   >
                     {pieData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
+                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Legend />
@@ -395,8 +369,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Modals */}
-        {showIncomeModal && (
+        {showIncomeModal && user && (
           <TransactionModal
             user={user}
             type="income"
@@ -404,7 +377,7 @@ export default function DashboardPage() {
             onSave={() => fetchTransactions()}
           />
         )}
-        {showExpenseModal && (
+        {showExpenseModal && user && (
           <TransactionModal
             user={user}
             type="expense"
